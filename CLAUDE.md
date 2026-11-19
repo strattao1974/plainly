@@ -4,7 +4,9 @@ Free Windows tray app (Rust + egui) that explains the PC in plain English: chang
 
 ## Build & test
 
-- Cargo isn't on PATH in this shell: use `C:\Users\strat\.cargo\bin\cargo.exe` or prepend it to PATH.
+- If `cargo` isn't on PATH, use `%USERPROFILE%\.cargo\bin\cargo.exe` or prepend that folder to PATH.
+- Installer: `iscc installer\plainly.iss` (Inno Setup 6; a per-user install puts ISCC in `%LOCALAPPDATA%\Programs\Inno Setup 6`).
+- Releasing: bump the version in `Cargo.toml` and `installer\plainly.iss`, build both, tag `vX.Y.Z`, and attach `PlainlySetup.exe` to a GitHub release. The in-app update check reads the latest release's tag.
 - `cargo test` (fast unit tests) · `cargo test -- --ignored --nocapture` (live reads of this PC/network).
 - Debug builds have a console, so panics in background threads show on stderr. Release builds use the windows subsystem.
 
