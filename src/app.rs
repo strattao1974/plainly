@@ -6,6 +6,7 @@ use crate::settings::Settings;
 use crate::shared::{read_status, Status};
 use crate::slow::{self, Level, SlowReport};
 use crate::theme::{self, icon, Pal};
+use crate::update::{self, UpdateInfo};
 use crate::winutil::{self, fmt_bytes};
 use chrono::{Datelike, Local, TimeZone};
 use eframe::egui::{
@@ -118,11 +119,20 @@ enum Confirm {
     ClearHistory,
 }
 
+#[derive(Default)]
+struct UpdateJob {
+    running: bool,
+    result: Option<Result<UpdateInfo, String>>,
+}
+
 pub struct PlainlyApp {
     shared: Arc<UiState>,
     status: Status,
     agent_up: bool,
     status_checked: Option<Instant>,
+    update: UpdateInfo,
+    update_dismissed: bool,
+    update_job: Arc<Mutex<UpdateJob>>,
     page: Page,
     filter: Filter,
     search: String,
@@ -195,6 +205,9 @@ impl PlainlyApp {
             status: Status::default(),
             agent_up: true,
             status_checked: None,
+            update: UpdateInfo::default(),
+            update_dismissed: false,
+            update_job: Arc::default(),
             page: Page::Timeline,
             filter: Filter::All,
             search: String::new(),
@@ -371,6 +384,7 @@ impl eframe::App for PlainlyApp {
         let stale = self.status_checked.map(|t| t.elapsed() > Duration::from_secs(3)).unwrap_or(true);
         if stale {
             self.status = read_status(&self.shared.dir);
+            self.update = update::load(&self.shared.dir);
             self.agent_up = ipc::agent_running();
             self.status_checked = Some(Instant::now());
             self.shared.journal.lock().unwrap().reload_if_changed();
@@ -403,6 +417,33 @@ impl eframe::App for PlainlyApp {
                         self.flash = None;
                     }
                 }
+                if self.update.available() && !self.update_dismissed {
+                    let (mut download, mut later) = (false, false);
+                    tinted_card(ui, &p, p.accent, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(format!("Plainly {} is available (you have {}).", self.update.latest, update::CURRENT))
+                                    .family(theme::semi())
+                                    .color(p.text),
+                            );
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if secondary(ui, &p, "Later").clicked() {
+                                    later = true;
+                                }
+                                if primary(ui, &p, "Download").clicked() {
+                                    download = true;
+                                }
+                            });
+                        });
+                    });
+                    ui.add_space(10.0);
+                    if download {
+                        winutil::shell_open(&self.update.url);
+                    }
+                    if later {
+                        self.update_dismissed = true;
+                    }
+                }
                 if !self.agent_up {
                     let mut start = false;
                     tinted_card(ui, &p, p.warn, |ui| {
@@ -432,7 +473,7 @@ impl eframe::App for PlainlyApp {
             });
         self.confirm_dialog(ctx, &p);
 
-        let busy = self.slow.lock().unwrap().running || {
+        let busy = self.slow.lock().unwrap().running || self.update_job.lock().unwrap().running || {
             let n = self.net.lock().unwrap();
             n.running || n.speed_running || n.site_running
         };
@@ -1188,6 +1229,7 @@ impl PlainlyApp {
         let mut s = self.shared.settings();
         let before = serde_json::to_string(&s).unwrap_or_default();
         let mut clear = false;
+        let mut check_updates_now = false;
         ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             section_title(ui, p, "Running in the background");
             card(ui, p, |ui| {
@@ -1230,7 +1272,7 @@ impl PlainlyApp {
                 ui.add_space(4.0);
                 ui.label(
                     RichText::new(
-                        "The only things it contacts are for the internet checks: your router, 1.1.1.1, 8.8.8.8 and 9.9.9.9 (to test the connection), www.msftconnecttest.com (Windows' own connection test), www.cloudflare.com, and speed.cloudflare.com (only when you run a speed test).",
+                        "Apart from the update check, the only things it contacts are for the internet checks: your router, 1.1.1.1, 8.8.8.8 and 9.9.9.9 (to test the connection), www.msftconnecttest.com (Windows' own connection test), www.cloudflare.com, and speed.cloudflare.com (only when you run a speed test). Once a day it asks api.github.com whether there's a newer version, unless you turn that off below.",
                     )
                     .size(12.5)
                     .color(p.weak),
@@ -1243,8 +1285,43 @@ impl PlainlyApp {
 
             section_title(ui, p, "About");
             card(ui, p, |ui| {
-                ui.label(RichText::new(format!("Plainly {}", env!("CARGO_PKG_VERSION"))).family(theme::semi()).color(p.text));
+                ui.label(RichText::new(format!("Plainly {}", update::CURRENT)).family(theme::semi()).color(p.text));
                 ui.label(RichText::new("Free and open source (MIT licence). Made with Rust.").color(p.weak));
+                ui.add_space(6.0);
+                ui.checkbox(&mut s.check_updates, "Check for updates once a day");
+                ui.label(
+                    RichText::new("Plainly only tells you about a new version and links to its download page. It never installs anything by itself.")
+                        .size(12.5)
+                        .color(p.weak),
+                );
+                ui.add_space(4.0);
+                let (running, result) = {
+                    let j = self.update_job.lock().unwrap();
+                    (j.running, j.result.clone())
+                };
+                ui.horizontal(|ui| {
+                    if ui.add_enabled_ui(!running, |ui| secondary(ui, p, "Check for updates now")).inner.clicked() {
+                        check_updates_now = true;
+                    }
+                    if running {
+                        ui.spinner();
+                    }
+                    match &result {
+                        Some(Ok(info)) if info.available() => {
+                            ui.label(RichText::new(format!("Version {} is available.", info.latest)).color(p.text));
+                            if ui.link("Download it").clicked() {
+                                winutil::shell_open(&info.url);
+                            }
+                        }
+                        Some(Ok(_)) => {
+                            ui.label(RichText::new("You have the latest version.").color(p.weak));
+                        }
+                        Some(Err(e)) => {
+                            ui.label(RichText::new(format!("Couldn't check: {e}.")).color(p.weak));
+                        }
+                        None => {}
+                    }
+                });
             });
             ui.add_space(20.0);
         });
@@ -1255,6 +1332,31 @@ impl PlainlyApp {
         if clear {
             self.confirm = Some(Confirm::ClearHistory);
         }
+        if check_updates_now {
+            self.start_update_check();
+        }
+    }
+
+    fn start_update_check(&self) {
+        {
+            let mut j = self.update_job.lock().unwrap();
+            if j.running {
+                return;
+            }
+            j.running = true;
+            j.result = None;
+        }
+        let job = self.update_job.clone();
+        let shared = self.shared.clone();
+        std::thread::spawn(move || {
+            let r = update::check_now(&shared.dir);
+            {
+                let mut j = job.lock().unwrap();
+                j.result = Some(r);
+                j.running = false;
+            }
+            shared.repaint();
+        });
     }
 
     fn confirm_dialog(&mut self, ctx: &egui::Context, p: &Pal) {

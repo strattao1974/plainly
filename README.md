@@ -10,7 +10,7 @@ It notifies you (quietly, respecting Do not disturb) only about things that matt
 
 ## Privacy
 
-Everything stays on the PC in `%LOCALAPPDATA%\Plainly`. No account, no telemetry, no ads. The only network traffic is for the internet checks: your router, 1.1.1.1 / 8.8.8.8 / 9.9.9.9, `www.msftconnecttest.com` (Windows' own connectivity test), `www.cloudflare.com`, and `speed.cloudflare.com` when you run a speed test.
+Everything stays on the PC in `%LOCALAPPDATA%\Plainly`. No account, no telemetry, no ads. The only network traffic is for the internet checks: your router, 1.1.1.1 / 8.8.8.8 / 9.9.9.9, `www.msftconnecttest.com` (Windows' own connectivity test), `www.cloudflare.com`, and `speed.cloudflare.com` when you run a speed test. Once a day it asks `api.github.com` whether a newer release exists (you can turn this off in Settings). It only shows a notification and a link to the release page; it never downloads or installs anything itself.
 
 ## Requirements
 

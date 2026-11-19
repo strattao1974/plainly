@@ -8,6 +8,8 @@ use windows::Win32::Networking::WinHttp::*;
 
 pub struct Response {
     pub status: u32,
+    /// The first `keep` bytes of the body; empty for plain `get`.
+    pub body: Vec<u8>,
     pub bytes: u64,
     pub elapsed: Duration,
 }
@@ -25,6 +27,15 @@ impl Drop for Handle {
 
 /// GETs `https://host/path`, reading (and counting, not keeping) the body for at most `max_time`.
 pub fn get(host: &str, path: &str, max_time: Duration) -> Result<Response, String> {
+    fetch(host, path, 0, max_time)
+}
+
+/// Like `get`, but keeps up to `keep` bytes of the body.
+pub fn get_body(host: &str, path: &str, keep: usize, max_time: Duration) -> Result<Response, String> {
+    fetch(host, path, keep, max_time)
+}
+
+fn fetch(host: &str, path: &str, keep: usize, max_time: Duration) -> Result<Response, String> {
     let host_w = wide(host);
     let path_w = wide(path);
     let start = Instant::now();
@@ -70,6 +81,7 @@ pub fn get(host: &str, path: &str, max_time: Duration) -> Result<Response, Strin
             std::ptr::null_mut(),
         );
 
+        let mut body = Vec::new();
         let mut total = 0u64;
         let mut chunk = vec![0u8; 64 * 1024];
         while start.elapsed() < max_time {
@@ -78,8 +90,12 @@ pub fn get(host: &str, path: &str, max_time: Duration) -> Result<Response, Strin
                 break;
             }
             total += read as u64;
+            if body.len() < keep {
+                let take = (keep - body.len()).min(read as usize);
+                body.extend_from_slice(&chunk[..take]);
+            }
         }
-        Ok(Response { status, bytes: total, elapsed: start.elapsed() })
+        Ok(Response { status, body, bytes: total, elapsed: start.elapsed() })
     }
 }
 

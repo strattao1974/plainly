@@ -17,6 +17,7 @@ pub struct Settings {
     pub watch_internet: bool,
     pub last_viewed: i64,
     pub told_about_tray: bool,
+    pub check_updates: bool,
 }
 
 impl Default for Settings {
@@ -35,6 +36,7 @@ impl Default for Settings {
             watch_internet: true,
             last_viewed: 0,
             told_about_tray: false,
+            check_updates: true,
         }
     }
 }

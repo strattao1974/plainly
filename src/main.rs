@@ -19,6 +19,7 @@ mod slow;
 mod snapshot;
 mod theme;
 mod tray;
+mod update;
 mod watcher;
 mod winutil;
 
@@ -51,6 +52,7 @@ fn main() -> eframe::Result<()> {
     watcher::spawn(shared.clone());
     pulse::spawn(shared.clone());
     netwatch::spawn(shared.clone());
+    update::spawn(shared.clone());
     if !background {
         ipc::open_window(page.as_deref());
     }
