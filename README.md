@@ -10,7 +10,7 @@ It notifies you (quietly, respecting Do not disturb) only about things that matt
 
 ## Privacy
 
-Everything stays on the PC in `%LOCALAPPDATA%\Plainly`. No account, no telemetry, no ads. The only network traffic is for the internet checks: your router, 1.1.1.1 / 8.8.8.8 / 9.9.9.9, `www.msftconnecttest.com` (Windows' own connectivity test), `www.cloudflare.com`, and `speed.cloudflare.com` when you run a speed test. Once a day it asks `api.github.com` whether a newer release exists (you can turn this off in Settings). It only shows a notification and a link to the release page; it never downloads or installs anything itself.
+Full details are in the [privacy policy](PRIVACY.md), which the installer also shows. In short: everything stays on the PC in `%LOCALAPPDATA%\Plainly`. No account, no telemetry, no ads. The only network traffic is for the internet checks: your router, 1.1.1.1 / 8.8.8.8 / 9.9.9.9, `www.msftconnecttest.com` (Windows' own connectivity test), `www.cloudflare.com`, and `speed.cloudflare.com` when you run a speed test. Once a day it asks `api.github.com` whether a newer release exists (you can turn this off in Settings). It only shows a notification and a link to the release page; it never downloads or installs anything itself.
 
 ## Requirements
 
@@ -24,6 +24,8 @@ cargo test                     # unit tests
 cargo test -- --ignored --nocapture   # live checks against this PC and network
 iscc installer\plainly.iss     # installer\Output\PlainlySetup.exe (needs Inno Setup 6)
 ```
+
+Official releases are built by GitHub Actions. See [docs/code-signing.md](docs/code-signing.md) for the release and signing steps.
 
 Run with `--background` to start hidden in the tray, which is what the startup entry uses. Set `PLAINLY_THEME=light` or `dark` to override the system theme.
 
@@ -47,9 +49,17 @@ One exe, two processes, so the always-on part stays tiny:
 | Tray icon and notifications | `src/tray.rs` |
 | UI (egui) | `src/app.rs`, `src/theme.rs` |
 
-## Before publishing
+## Code signing policy
 
-- Unsigned apps trigger a SmartScreen "Windows protected your PC" warning on download until they build up reputation. A code-signing certificate (or the free [SignPath for open source](https://signpath.org/)) removes that.
+Plainly releases are built from this repository's source by GitHub Actions ([release workflow](.github/workflows/release.yml)). Nothing is built on anyone's own PC.
+
+**Signing status:** releases are currently **unsigned**, so Windows SmartScreen may show "Windows protected your PC" the first time (click **More info → Run anyway**). We plan to apply to the [SignPath Foundation](https://signpath.org)'s free code signing program for open-source projects, and this section will carry their attribution once approved.
+
+**Team roles:**
+- Committers and reviewers: [strattao1974](https://github.com/strattao1974). Changes from anyone else arrive as pull requests and are reviewed before merging.
+- Approvers (who approve each release for signing): [strattao1974](https://github.com/strattao1974)
+
+**Privacy:** see the [privacy policy](PRIVACY.md). Plainly doesn't send any of what it records to anyone. The only network connections it makes are listed there, and the two background ones can be turned off during installation or in Settings.
 
 ## Licence
 

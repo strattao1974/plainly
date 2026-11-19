@@ -6,7 +6,8 @@ Free Windows tray app (Rust + egui) that explains the PC in plain English: chang
 
 - If `cargo` isn't on PATH, use `%USERPROFILE%\.cargo\bin\cargo.exe` or prepend that folder to PATH.
 - Installer: `iscc installer\plainly.iss` (Inno Setup 6; a per-user install puts ISCC in `%LOCALAPPDATA%\Programs\Inno Setup 6`).
-- Releasing: bump the version in `Cargo.toml` and `installer\plainly.iss`, build both, tag `vX.Y.Z`, and attach `PlainlySetup.exe` to a GitHub release. The in-app update check reads the latest release's tag.
+- Releasing: bump `version` in `Cargo.toml`, then push a `vX.Y.Z` tag. `.github/workflows/release.yml` builds (and, once SignPath is set up, signs) the files and creates a draft release. Official release files must come from CI, never from a local build (a SignPath requirement). Full steps: `docs/code-signing.md`. The in-app update check reads the latest release's tag.
+- Silent installs: `/TASKS=` replaces the default task list, so list every task you want (`startup,internetwatch,updates`) or leave it out.
 - `cargo test` (fast unit tests) · `cargo test -- --ignored --nocapture` (live reads of this PC/network).
 - Debug builds have a console, so panics in background threads show on stderr. Release builds use the windows subsystem.
 

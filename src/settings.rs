@@ -43,10 +43,35 @@ impl Default for Settings {
 
 impl Settings {
     pub fn load(path: &Path) -> Self {
-        std::fs::read_to_string(path)
+        let mut s: Settings = std::fs::read_to_string(path)
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        if s.apply_install_options() {
+            s.save(path);
+        }
+        s
+    }
+
+    /// The installer records its "turn this off" choices in HKCU\Software\Plainly and marks them
+    /// pending; whichever Plainly process starts first copies them into settings once.
+    fn apply_install_options(&mut self) -> bool {
+        use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE};
+        let Ok(key) = winreg::RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(r"Software\Plainly", KEY_READ | KEY_WRITE)
+        else {
+            return false;
+        };
+        if key.get_value::<u32, _>("InstallOptionsPending").unwrap_or(0) != 1 {
+            return false;
+        }
+        if let Ok(v) = key.get_value::<u32, _>("CheckUpdates") {
+            self.check_updates = v != 0;
+        }
+        if let Ok(v) = key.get_value::<u32, _>("WatchInternet") {
+            self.watch_internet = v != 0;
+        }
+        let _ = key.set_value("InstallOptionsPending", &0u32);
+        true
     }
 
     /// Written to a temp file first so the background watcher never reads a half-written file.

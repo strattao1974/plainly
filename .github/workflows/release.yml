@@ -1,0 +1,124 @@
+# Builds the release files on GitHub-hosted runners (required for SignPath signing).
+#  - Push a tag like v0.2.0 -> builds, signs (once SignPath is set up) and creates a DRAFT release to review.
+#  - Run manually (Actions > Release > Run workflow) -> builds and keeps the files as a workflow artifact only.
+# Signing switches on automatically once the repo variable SIGNPATH_ORGANIZATION_ID is set; see docs/code-signing.md.
+# No build caches on purpose: SignPath's origin verification requires clean, reproducible builds.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      SIGN: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$v") {
+            throw "Tag $env:GITHUB_REF_NAME doesn't match the version in Cargo.toml ($v)"
+          }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Upload unsigned exe for signing
+        if: env.SIGN == 'true'
+        id: upload-exe
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-exe
+          path: target/release/plainly.exe
+
+      - name: Sign exe
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: exe
+          github-artifact-id: ${{ steps.upload-exe.outputs.artifact-id }}
+          wait-for-completion: true
+          # Each signing request is approved by hand, so allow time for that.
+          wait-for-completion-timeout-in-seconds: 18000
+          output-artifact-directory: target/release
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "Couldn't install Inno Setup" }
+          }
+          & $iscc /Q "/DAppVersion=${{ steps.version.outputs.version }}" installer\plainly.iss
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed" }
+
+      - name: Upload unsigned installer for signing
+        if: env.SIGN == 'true'
+        id: upload-installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-installer
+          path: installer/Output/PlainlySetup.exe
+
+      - name: Sign installer
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 18000
+          output-artifact-directory: installer/Output
+
+      - name: Collect release files
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          New-Item -ItemType Directory dist -Force | Out-Null
+          Copy-Item installer\Output\PlainlySetup.exe dist\PlainlySetup.exe
+          Copy-Item target\release\plainly.exe "dist\Plainly-$v-portable.exe"
+          Get-ChildItem dist | ForEach-Object { "{0}  {1} bytes  sha256 {2}" -f $_.Name, $_.Length, (Get-FileHash $_.FullName).Hash }
+          $signed = (Get-AuthenticodeSignature dist\PlainlySetup.exe).Status
+          "Installer signature status: $signed"
+
+      - name: Keep files as a workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: plainly-${{ steps.version.outputs.version }}
+          path: dist/*
+
+      - name: Create draft release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          gh release create "v$v" (Get-ChildItem dist).FullName --repo "${{ github.repository }}" --draft --title "Plainly $v" --generate-notes
