@@ -2,11 +2,27 @@
 
 **Your PC, explained in plain English.** A small, free Windows app (6 MB) that lives by the clock and answers three questions people ask all the time:
 
+**[⬇ Download the latest version](https://github.com/strattao1974/plainly/releases/latest)** (Windows 10 and 11)
+
+![Plainly's timeline, showing Zoom adding itself to startup, the default browser being switched, and an internet drop-out, each explained in plain English](docs/screenshots/timeline.png)
+
 - **What changed?** A timeline of what happens to your PC behind your back: apps that add themselves to startup, new background services and scheduled tasks, installs and updates, changed default apps (browser, PDF, email…), Windows Update installs and restarts, crashes and blue screens, Microsoft Defender detections, sudden drops in disk space, slowdowns and internet drop-outs. Each entry comes with one-click fixes such as *Turn it off*, *Change it back…* or *Show file*.
 - **Why is it slow?** One click names what's using the processor, memory or disk, and says why in words, e.g. *"Windows Update is installing updates"* or *"OneDrive is syncing"*. It also flags the slow-burn causes: weeks without a real restart, an almost-full drive, battery saver, too many startup apps.
 - **Is it me or the internet?** Checks every link (PC → Wi-Fi/cable → router → internet → DNS → websites) and names the broken one. Also includes a speed test with a lag-under-load check, a "is this one website down?" checker, and a log of internet drop-outs with who was at fault, which is handy evidence for your provider.
 
 It notifies you (quietly, respecting Do not disturb) only about things that matter: something adding itself to startup, a new background service or task, a changed default app, or a Defender detection.
+
+## Screenshots
+
+| Is it me or the internet? | Why is my PC slow? |
+|---|---|
+| ![Internet check: each link from the PC to the router, internet, DNS and websites is checked, with a plain-English verdict](docs/screenshots/internet-check.png) | ![Why is my PC slow: live processor, memory and disk gauges, a verdict, and the apps using the most, each explained](docs/screenshots/why-slow.png) |
+
+| Problems, in light mode |
+|---|
+| ![Timeline filtered to problems in light mode: a crashing app, a big drop in disk space, and a Microsoft Defender detection](docs/screenshots/problems-light.png) |
+
+*The timeline screenshots use sample data; the other two are live checks.*
 
 ## Privacy
 
@@ -28,6 +44,13 @@ iscc installer\plainly.iss     # installer\Output\PlainlySetup.exe (needs Inno S
 Official releases are built by GitHub Actions. See [docs/code-signing.md](docs/code-signing.md) for the release and signing steps.
 
 Run with `--background` to start hidden in the tray, which is what the startup entry uses. Set `PLAINLY_THEME=light` or `dark` to override the system theme.
+
+To take screenshots without showing your own PC's history, generate sample data and point a second copy at it. It runs alongside your normal Plainly:
+
+```powershell
+tools\make-demo-data.ps1 -Dir $env:TEMP\plainly-demo
+$env:PLAINLY_DATA_DIR = "$env:TEMP\plainly-demo"; target\release\plainly.exe --window
+```
 
 ## How it works
 

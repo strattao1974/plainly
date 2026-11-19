@@ -11,6 +11,8 @@ Free Windows tray app (Rust + egui) that explains the PC in plain English: chang
 - `cargo test` (fast unit tests) · `cargo test -- --ignored --nocapture` (live reads of this PC/network).
 - Debug builds have a console, so panics in background threads show on stderr. Release builds use the windows subsystem.
 
+- Screenshots: `docs/screenshots/` are made from `tools/make-demo-data.ps1` sample data via `PLAINLY_DATA_DIR` (see README). Never publish screenshots of a real PC's timeline.
+
 ## Architecture
 
 Two processes from one exe (see README "How it works"): the background watcher owns the tray and is the only writer of `timeline.jsonl`/`status.json`; the window (`--window`) owns `settings.json` and exits on close. Keep the watcher free of egui/GPU work, because its small footprint is a feature.

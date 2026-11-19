@@ -42,7 +42,7 @@ fn main() -> eframe::Result<()> {
     }
 
     let background = args.iter().any(|a| a == "--background");
-    if !winutil::claim_single_instance("Local\\Plainly.Agent") {
+    if !winutil::claim_single_instance(&winutil::instance_name("Local\\Plainly.Agent")) {
         if !background {
             ipc::send_to_agent("open");
         }
@@ -76,7 +76,7 @@ fn main() -> eframe::Result<()> {
 }
 
 fn run_window(dir: PathBuf, page: Option<String>) -> eframe::Result<()> {
-    if !winutil::claim_single_instance("Local\\Plainly.Window") {
+    if !winutil::claim_single_instance(&winutil::instance_name("Local\\Plainly.Window")) {
         ipc::send_to_window(&page.map(|p| format!("page:{p}")).unwrap_or_else(|| "open".into()));
         return Ok(());
     }

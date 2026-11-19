@@ -251,7 +251,11 @@ pub fn to_events(raw: &[RawEvent]) -> Vec<Event> {
     }
     for ((_, app, hang), list) in crashes {
         let time = list.iter().map(|e| e.time).max().unwrap_or(0);
-        let name = app.trim_end_matches(".exe").trim_end_matches(".EXE");
+        let lower = app.to_ascii_lowercase();
+        let name = match crate::kb::process(&lower) {
+            Some(k) => k.name,
+            None => app.trim_end_matches(".exe").trim_end_matches(".EXE"),
+        };
         let n = list.len();
         let title = match (hang, n) {
             (false, 1) => format!("{name} crashed"),
@@ -367,7 +371,7 @@ mod tests {
         };
         let out = to_events(&[mk(1_795_600_000), mk(1_795_600_100), mk(1_795_600_200)]);
         assert_eq!(out.len(), 1);
-        assert_eq!(out[0].title, "chrome crashed 3 times");
+        assert_eq!(out[0].title, "Google Chrome crashed 3 times");
     }
 
     #[test]

@@ -29,7 +29,24 @@ pub fn from_wide(buf: &[u16]) -> String {
     String::from_utf16_lossy(&buf[..n])
 }
 
+/// PLAINLY_DATA_DIR points Plainly at another data folder (used for demo screenshots and testing),
+/// and gives that copy its own single-instance names so it can run beside the real one.
+pub fn data_dir_override() -> Option<PathBuf> {
+    std::env::var_os("PLAINLY_DATA_DIR").map(PathBuf::from).filter(|p| !p.as_os_str().is_empty())
+}
+
+pub fn instance_name(base: &str) -> String {
+    if data_dir_override().is_some() {
+        format!("{base}.Alt")
+    } else {
+        base.to_string()
+    }
+}
+
 pub fn data_dir() -> PathBuf {
+    if let Some(p) = data_dir_override() {
+        return p;
+    }
     let base = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::temp_dir());
